@@ -1,9 +1,12 @@
 import prisma from "@/lib/prisma/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { ProtectionMiddleware } from "../protection";
 
 // GET all wallets
 export async function GET(request: NextRequest) {
   try {
+    await ProtectionMiddleware(request);
+
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
 
@@ -37,6 +40,8 @@ export async function GET(request: NextRequest) {
 // POST new wallet
 export async function POST(request: NextRequest) {
   try {
+    await ProtectionMiddleware(request);
+
     const body = await request.json();
     const { name, type, balance, currency, color, icon, userId } = body;
 
@@ -72,6 +77,8 @@ export async function POST(request: NextRequest) {
 // PUT update wallet
 export async function PUT(request: NextRequest) {
   try {
+    await ProtectionMiddleware(request);
+
     const body = await request.json();
     const { id, name, type, color, icon, currency } = body;
 
@@ -85,10 +92,7 @@ export async function PUT(request: NextRequest) {
     const existing = await prisma.wallet.findUnique({ where: { id } });
 
     if (!existing) {
-      return NextResponse.json(
-        { error: "Wallet not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
     }
 
     const wallet = await prisma.wallet.update({
@@ -115,6 +119,8 @@ export async function PUT(request: NextRequest) {
 // DELETE wallet
 export async function DELETE(request: NextRequest) {
   try {
+    await ProtectionMiddleware(request);
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -135,10 +141,7 @@ export async function DELETE(request: NextRequest) {
     });
 
     if (!existing) {
-      return NextResponse.json(
-        { error: "Wallet not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
     }
 
     if (existing._count.transactions > 0) {

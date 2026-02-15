@@ -1,33 +1,134 @@
 import prisma from "@/lib/prisma/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { ProtectionMiddleware } from "../protection";
 
 const DEFAULT_CATEGORIES = [
   // Expense categories
-  { name: "Food & Dining", type: "EXPENSE" as const, color: "#ef4444", icon: "food" },
-  { name: "Transportation", type: "EXPENSE" as const, color: "#f97316", icon: "car" },
-  { name: "Entertainment", type: "EXPENSE" as const, color: "#a855f7", icon: "movie" },
-  { name: "Shopping", type: "EXPENSE" as const, color: "#ec4899", icon: "shopping" },
-  { name: "Bills & Utilities", type: "EXPENSE" as const, color: "#06b6d4", icon: "bill" },
-  { name: "Healthcare", type: "EXPENSE" as const, color: "#10b981", icon: "health" },
-  { name: "Education", type: "EXPENSE" as const, color: "#6366f1", icon: "education" },
-  { name: "Rent & Housing", type: "EXPENSE" as const, color: "#8b5cf6", icon: "house" },
-  { name: "Insurance", type: "EXPENSE" as const, color: "#14b8a6", icon: "shield" },
-  { name: "Subscriptions", type: "EXPENSE" as const, color: "#f43f5e", icon: "subscription" },
-  { name: "Personal Care", type: "EXPENSE" as const, color: "#d946ef", icon: "person" },
-  { name: "Gifts & Donations", type: "EXPENSE" as const, color: "#e11d48", icon: "gift" },
+  {
+    name: "Food & Dining",
+    type: "EXPENSE" as const,
+    color: "#ef4444",
+    icon: "food",
+  },
+  {
+    name: "Transportation",
+    type: "EXPENSE" as const,
+    color: "#f97316",
+    icon: "car",
+  },
+  {
+    name: "Entertainment",
+    type: "EXPENSE" as const,
+    color: "#a855f7",
+    icon: "movie",
+  },
+  {
+    name: "Shopping",
+    type: "EXPENSE" as const,
+    color: "#ec4899",
+    icon: "shopping",
+  },
+  {
+    name: "Bills & Utilities",
+    type: "EXPENSE" as const,
+    color: "#06b6d4",
+    icon: "bill",
+  },
+  {
+    name: "Healthcare",
+    type: "EXPENSE" as const,
+    color: "#10b981",
+    icon: "health",
+  },
+  {
+    name: "Education",
+    type: "EXPENSE" as const,
+    color: "#6366f1",
+    icon: "education",
+  },
+  {
+    name: "Rent & Housing",
+    type: "EXPENSE" as const,
+    color: "#8b5cf6",
+    icon: "house",
+  },
+  {
+    name: "Insurance",
+    type: "EXPENSE" as const,
+    color: "#14b8a6",
+    icon: "shield",
+  },
+  {
+    name: "Subscriptions",
+    type: "EXPENSE" as const,
+    color: "#f43f5e",
+    icon: "subscription",
+  },
+  {
+    name: "Personal Care",
+    type: "EXPENSE" as const,
+    color: "#d946ef",
+    icon: "person",
+  },
+  {
+    name: "Gifts & Donations",
+    type: "EXPENSE" as const,
+    color: "#e11d48",
+    icon: "gift",
+  },
   { name: "Travel", type: "EXPENSE" as const, color: "#0ea5e9", icon: "plane" },
-  { name: "Groceries", type: "EXPENSE" as const, color: "#22c55e", icon: "grocery" },
-  { name: "Other Expense", type: "EXPENSE" as const, color: "#6b7280", icon: "other" },
+  {
+    name: "Groceries",
+    type: "EXPENSE" as const,
+    color: "#22c55e",
+    icon: "grocery",
+  },
+  {
+    name: "Other Expense",
+    type: "EXPENSE" as const,
+    color: "#6b7280",
+    icon: "other",
+  },
   // Income categories
   { name: "Salary", type: "INCOME" as const, color: "#22c55e", icon: "salary" },
-  { name: "Freelance", type: "INCOME" as const, color: "#3b82f6", icon: "freelance" },
-  { name: "Investment Returns", type: "INCOME" as const, color: "#8b5cf6", icon: "investment" },
-  { name: "Business Income", type: "INCOME" as const, color: "#f59e0b", icon: "business" },
-  { name: "Rental Income", type: "INCOME" as const, color: "#14b8a6", icon: "rent" },
-  { name: "Side Hustle", type: "INCOME" as const, color: "#06b6d4", icon: "hustle" },
+  {
+    name: "Freelance",
+    type: "INCOME" as const,
+    color: "#3b82f6",
+    icon: "freelance",
+  },
+  {
+    name: "Investment Returns",
+    type: "INCOME" as const,
+    color: "#8b5cf6",
+    icon: "investment",
+  },
+  {
+    name: "Business Income",
+    type: "INCOME" as const,
+    color: "#f59e0b",
+    icon: "business",
+  },
+  {
+    name: "Rental Income",
+    type: "INCOME" as const,
+    color: "#14b8a6",
+    icon: "rent",
+  },
+  {
+    name: "Side Hustle",
+    type: "INCOME" as const,
+    color: "#06b6d4",
+    icon: "hustle",
+  },
   { name: "Bonus", type: "INCOME" as const, color: "#eab308", icon: "bonus" },
   { name: "Refund", type: "INCOME" as const, color: "#10b981", icon: "refund" },
-  { name: "Other Income", type: "INCOME" as const, color: "#6b7280", icon: "other" },
+  {
+    name: "Other Income",
+    type: "INCOME" as const,
+    color: "#6b7280",
+    icon: "other",
+  },
 ];
 
 async function seedDefaultCategories(userId: string) {
@@ -45,6 +146,8 @@ async function seedDefaultCategories(userId: string) {
 // GET all categories
 export async function GET(request: NextRequest) {
   try {
+    await ProtectionMiddleware(request);
+
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
     const type = searchParams.get("type");
@@ -85,6 +188,8 @@ export async function GET(request: NextRequest) {
 // POST new category
 export async function POST(request: NextRequest) {
   try {
+    await ProtectionMiddleware(request);
+
     const body = await request.json();
     const { name, type, color, icon, userId } = body;
 
@@ -125,6 +230,8 @@ export async function POST(request: NextRequest) {
 // PUT update category
 export async function PUT(request: NextRequest) {
   try {
+    await ProtectionMiddleware(request);
+
     const body = await request.json();
     const { id, name, color, icon } = body;
 
@@ -166,6 +273,8 @@ export async function PUT(request: NextRequest) {
 // DELETE category
 export async function DELETE(request: NextRequest) {
   try {
+    await ProtectionMiddleware(request);
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 

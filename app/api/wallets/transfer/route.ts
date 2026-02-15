@@ -1,17 +1,19 @@
 import prisma from "@/lib/prisma/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { ProtectionMiddleware } from "../../protection";
 
 // POST transfer money between wallets
 export async function POST(request: NextRequest) {
   try {
+    await ProtectionMiddleware(request);
+
     const body = await request.json();
     const { fromWalletId, toWalletId, amount, userId, description } = body;
 
     if (!fromWalletId || !toWalletId || !amount || !userId) {
       return NextResponse.json(
         {
-          error:
-            "fromWalletId, toWalletId, amount, and userId are required",
+          error: "fromWalletId, toWalletId, amount, and userId are required",
         },
         { status: 400 }
       );
@@ -82,8 +84,7 @@ export async function POST(request: NextRequest) {
         data: {
           amount,
           type: "EXPENSE",
-          description:
-            description || `Transfer to ${toWallet.name}`,
+          description: description || `Transfer to ${toWallet.name}`,
           userId,
           walletId: fromWalletId,
         },
@@ -94,8 +95,7 @@ export async function POST(request: NextRequest) {
         data: {
           amount,
           type: "INCOME",
-          description:
-            description || `Transfer from ${fromWallet.name}`,
+          description: description || `Transfer from ${fromWallet.name}`,
           userId,
           walletId: toWalletId,
         },

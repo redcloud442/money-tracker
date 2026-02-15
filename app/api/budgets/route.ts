@@ -1,9 +1,12 @@
 import prisma from "@/lib/prisma/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { ProtectionMiddleware } from "../protection";
 
 // GET all budgets with computed spent from transactions
 export async function GET(request: NextRequest) {
   try {
+    await ProtectionMiddleware(request);
+
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
 
@@ -74,6 +77,8 @@ export async function GET(request: NextRequest) {
 // POST new budget
 export async function POST(request: NextRequest) {
   try {
+    await ProtectionMiddleware(request);
+
     const body = await request.json();
     const {
       name,
@@ -169,6 +174,8 @@ export async function POST(request: NextRequest) {
 // PUT update budget
 export async function PUT(request: NextRequest) {
   try {
+    await ProtectionMiddleware(request);
+
     const body = await request.json();
     const { id, name, amount, period, categoryId, walletId } = body;
 
@@ -213,6 +220,8 @@ export async function PUT(request: NextRequest) {
 // DELETE budget
 export async function DELETE(request: NextRequest) {
   try {
+    await ProtectionMiddleware(request);
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
