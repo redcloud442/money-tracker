@@ -1,5 +1,6 @@
 "use client";
 
+import { authClient, useSession } from "@/lib/better-auth/auth-client";
 import {
   Button,
   Group,
@@ -16,10 +17,11 @@ import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
 export default function SettingsPage() {
+  const { data: session } = useSession();
   const profileForm = useForm({
     initialValues: {
-      name: "User",
-      email: "user@example.com",
+      name: session?.user?.name || "",
+      email: session?.user?.email || "",
     },
   });
 
@@ -31,7 +33,18 @@ export default function SettingsPage() {
     },
   });
 
-  const handleProfileUpdate = (values: typeof profileForm.values) => {
+  const handleProfileUpdate = async (values: typeof profileForm.values) => {
+    const response = await authClient.updateUser({
+      name: values.name,
+    });
+    if (response.error) {
+      notifications.show({
+        title: "Error",
+        message: response.error.message,
+        color: "red",
+      });
+      return;
+    }
     notifications.show({
       title: "Success",
       message: "Profile updated successfully",
@@ -39,7 +52,19 @@ export default function SettingsPage() {
     });
   };
 
-  const handlePasswordUpdate = (values: typeof passwordForm.values) => {
+  const handlePasswordUpdate = async (values: typeof passwordForm.values) => {
+    const response = await authClient.changePassword({
+      currentPassword: values.currentPassword,
+      newPassword: values.newPassword,
+    });
+    if (response.error) {
+      notifications.show({
+        title: "Error",
+        message: response.error.message,
+        color: "red",
+      });
+      return;
+    }
     notifications.show({
       title: "Success",
       message: "Password updated successfully",
