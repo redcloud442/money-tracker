@@ -1,0 +1,249 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String        @id @default(cuid())
+  name          String
+  email         String
+  emailVerified Boolean       @default(false)
+  image         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  wallets       Wallet[]
+  categories    Category[]
+  transactions  Transaction[]
+  budgets       Budget[]
+
+  members     Member[]
+  invitations Invitation[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  activeOrganizationId String?
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// Money Tracking Models
+
+model Wallet {
+  id           String        @id @default(cuid())
+  name         String
+  type         WalletType    @default(CASH)
+  balance      Float         @default(0)
+  currency     String        @default("PHP")
+  color        String?
+  icon         String?
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  budgets      Budget[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([userId])
+  @@map("wallet")
+}
+
+model Category {
+  id           String          @id @default(cuid())
+  name         String
+  type         TransactionType
+  color        String?
+  icon         String?
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  budgets      Budget[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([userId])
+  @@map("category")
+}
+
+model Transaction {
+  id                  String             @id @default(cuid())
+  amount              Float
+  type                TransactionType
+  description         String?
+  date                DateTime           @default(now())
+  userId              String
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId            String
+  wallet              Wallet             @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  categoryId          String?
+  category            Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tags                String[]
+  notes               String?
+  isRecurring         Boolean            @default(false)
+  recurringInterval   RecurringInterval?
+  nextRecurrenceDate  DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([walletId])
+  @@index([categoryId])
+  @@index([date])
+  @@map("transaction")
+}
+
+model Budget {
+  id         String       @id @default(cuid())
+  name       String
+  amount     Float
+  spent      Float        @default(0)
+  period     BudgetPeriod @default(MONTHLY)
+  startDate  DateTime
+  endDate    DateTime
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId String?
+  category   Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  walletId   String?
+  wallet     Wallet?      @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([walletId])
+  @@map("budget")
+}
+
+enum WalletType {
+  CASH
+  BANK
+  CREDIT_CARD
+  DEBIT_CARD
+  INVESTMENT
+  SAVINGS
+  OTHER
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum BudgetPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum RecurringInterval {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  YEARLY
+}
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String
+  logo        String?
+  createdAt   DateTime
+  metadata    String?
+  members     Member[]
+  invitations Invitation[]
+
+  @@unique([slug])
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member")
+  createdAt      DateTime
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String?
+  status         String       @default("pending")
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  inviterId      String
+  user           User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("invitation")
+}
