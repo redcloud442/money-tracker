@@ -88,38 +88,44 @@ model Verification {
 // Money Tracking Models
 
 model Wallet {
-  id           String        @id @default(cuid())
-  name         String
-  type         WalletType    @default(CASH)
-  balance      Float         @default(0)
-  currency     String        @default("PHP")
-  color        String?
-  icon         String?
-  userId       String
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
-  budgets      Budget[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  name           String
+  type           WalletType    @default(CASH)
+  balance        Float         @default(0)
+  currency       String        @default("PHP")
+  color          String?
+  icon           String?
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+  budgets        Budget[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@index([userId])
+  @@index([organizationId])
   @@map("wallet")
 }
 
 model Category {
-  id           String          @id @default(cuid())
-  name         String
-  type         TransactionType
-  color        String?
-  icon         String?
-  userId       String
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
-  budgets      Budget[]
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  id             String          @id @default(cuid())
+  name           String
+  type           TransactionType
+  color          String?
+  icon           String?
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+  budgets        Budget[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@index([userId])
+  @@index([organizationId])
   @@map("category")
 }
 
@@ -131,6 +137,8 @@ model Transaction {
   date                DateTime           @default(now())
   userId              String
   user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId      String
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   walletId            String
   wallet              Wallet             @relation(fields: [walletId], references: [id], onDelete: Cascade)
   categoryId          String?
@@ -144,6 +152,7 @@ model Transaction {
   updatedAt           DateTime           @updatedAt
 
   @@index([userId])
+  @@index([organizationId])
   @@index([walletId])
   @@index([categoryId])
   @@index([date])
@@ -151,23 +160,26 @@ model Transaction {
 }
 
 model Budget {
-  id         String       @id @default(cuid())
-  name       String
-  amount     Float
-  spent      Float        @default(0)
-  period     BudgetPeriod @default(MONTHLY)
-  startDate  DateTime
-  endDate    DateTime
-  userId     String
-  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  categoryId String?
-  category   Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  walletId   String?
-  wallet     Wallet?      @relation(fields: [walletId], references: [id], onDelete: SetNull)
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  id             String       @id @default(cuid())
+  name           String
+  amount         Float
+  spent          Float        @default(0)
+  period         BudgetPeriod @default(MONTHLY)
+  startDate      DateTime
+  endDate        DateTime
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  categoryId     String?
+  category       Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  walletId       String?
+  wallet         Wallet?      @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   @@index([userId])
+  @@index([organizationId])
   @@index([categoryId])
   @@index([walletId])
   @@map("budget")
@@ -204,14 +216,18 @@ enum RecurringInterval {
 }
 
 model Organization {
-  id          String       @id @default(cuid())
-  name        String
-  slug        String
-  logo        String?
-  createdAt   DateTime
-  metadata    String?
-  members     Member[]
-  invitations Invitation[]
+  id           String        @id @default(cuid())
+  name         String
+  slug         String
+  logo         String?
+  createdAt    DateTime
+  metadata     String?
+  members      Member[]
+  invitations  Invitation[]
+  wallets      Wallet[]
+  categories   Category[]
+  transactions Transaction[]
+  budgets      Budget[]
 
   @@unique([slug])
   @@map("organization")

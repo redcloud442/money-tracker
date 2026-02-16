@@ -38,7 +38,6 @@ export default function WalletsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const { data: session } = useSession();
-  const userId = session?.user?.id;
 
   const form = useForm({
     initialValues: {
@@ -51,9 +50,9 @@ export default function WalletsPage() {
   });
 
   const fetchWallets = useCallback(async () => {
-    if (!userId) return;
+    if (!session) return;
     try {
-      const res = await fetch(`/api/wallets?userId=${userId}`);
+      const res = await fetch("/api/wallets");
       if (res.ok) {
         setWallets(await res.json());
       }
@@ -66,22 +65,22 @@ export default function WalletsPage() {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [session]);
 
   useEffect(() => {
-    if (userId) {
+    if (session) {
       fetchWallets();
     }
-  }, [userId, fetchWallets]);
+  }, [session, fetchWallets]);
 
   const handleSubmit = async (values: typeof form.values) => {
-    if (!userId) return;
+    if (!session) return;
     setSubmitting(true);
     try {
       const res = await fetch("/api/wallets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, userId }),
+        body: JSON.stringify(values),
       });
 
       if (res.ok) {

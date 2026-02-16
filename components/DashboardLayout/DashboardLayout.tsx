@@ -29,6 +29,7 @@ import {
   IconUsers,
   IconWallet,
 } from "@tabler/icons-react";
+import OrgSwitcher from "@/components/OrgSwitcher/OrgSwitcher";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode } from "react";
@@ -191,6 +192,7 @@ export default function DashboardLayout({
       </AppShell.Header>
 
       <AppShell.Navbar p="md">
+        <OrgSwitcher />
         <Text size="xs" c="dimmed" fw={500} mb="md" tt="uppercase">
           Navigation
         </Text>

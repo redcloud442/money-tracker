@@ -2,8 +2,10 @@
 
 import { authClient, useSession } from "@/lib/better-auth/auth-client";
 import {
+  Badge,
   Button,
   Group,
+  Loader,
   Paper,
   PasswordInput,
   Select,
@@ -15,9 +17,67 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
+import { IconBuilding, IconPlus } from "@tabler/icons-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+
+interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+}
 
 export default function SettingsPage() {
   const { data: session } = useSession();
+  const router = useRouter();
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [orgsLoading, setOrgsLoading] = useState(true);
+  const [switching, setSwitching] = useState<string | null>(null);
+
+  const fetchOrganizations = useCallback(async () => {
+    try {
+      const res = await fetch("/api/organizations");
+      if (res.ok) {
+        setOrganizations(await res.json());
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setOrgsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (session) {
+      fetchOrganizations();
+    }
+  }, [session, fetchOrganizations]);
+
+  const handleSwitchOrg = async (orgId: string) => {
+    setSwitching(orgId);
+    try {
+      await authClient.organization.setActive({
+        organizationId: orgId,
+      });
+      const targetOrg = organizations.find((o) => o.id === orgId);
+      notifications.show({
+        title: "Organization switched",
+        message: `Switched to ${targetOrg?.name}`,
+        color: "teal",
+      });
+      router.push(`/${orgId}`);
+      router.refresh();
+    } catch {
+      notifications.show({
+        title: "Error",
+        message: "Failed to switch organization",
+        color: "red",
+      });
+    } finally {
+      setSwitching(null);
+    }
+  };
   const profileForm = useForm({
     initialValues: {
       name: session?.user?.name || "",
@@ -102,6 +162,58 @@ export default function SettingsPage() {
             </Group>
           </Stack>
         </form>
+      </Paper>
+
+      {/* Organization Settings */}
+      <Paper withBorder p="md" radius="md">
+        <Text fw={600} size="lg" mb="md">
+          Organizations
+        </Text>
+        {orgsLoading ? (
+          <Group justify="center" py="md">
+            <Loader size="sm" />
+          </Group>
+        ) : (
+          <Stack gap="sm">
+            {organizations.map((org) => (
+              <Group key={org.id} justify="space-between">
+                <Group gap="sm">
+                  <IconBuilding size={18} color="var(--mantine-color-blue-6)" />
+                  <div>
+                    <Text fw={500} size="sm">
+                      {org.name}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {org.slug} &middot; {org.role}
+                    </Text>
+                  </div>
+                </Group>
+                {org.id === session?.session?.activeOrganizationId ? (
+                  <Badge color="blue" variant="light">
+                    Active
+                  </Badge>
+                ) : (
+                  <Button
+                    size="xs"
+                    variant="light"
+                    loading={switching === org.id}
+                    onClick={() => handleSwitchOrg(org.id)}
+                  >
+                    Switch
+                  </Button>
+                )}
+              </Group>
+            ))}
+            <Button
+              variant="subtle"
+              leftSection={<IconPlus size={16} />}
+              onClick={() => router.push("/onboarding")}
+              mt="xs"
+            >
+              Create New Organization
+            </Button>
+          </Stack>
+        )}
       </Paper>
 
       {/* Password Settings */}

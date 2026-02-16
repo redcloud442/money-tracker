@@ -46,7 +46,6 @@ export default function BudgetsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const { data: session } = useSession();
-  const userId = session?.user?.id;
 
   const form = useForm({
     initialValues: {
@@ -59,9 +58,9 @@ export default function BudgetsPage() {
   });
 
   const fetchBudgets = useCallback(async () => {
-    if (!userId) return;
+    if (!session) return;
     try {
-      const res = await fetch(`/api/budgets?userId=${userId}`);
+      const res = await fetch("/api/budgets");
       if (res.ok) {
         setBudgets(await res.json());
       }
@@ -74,42 +73,42 @@ export default function BudgetsPage() {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [session]);
 
   const fetchCategories = useCallback(async () => {
-    if (!userId) return;
+    if (!session) return;
     try {
-      const res = await fetch(`/api/categories?userId=${userId}&type=EXPENSE`);
+      const res = await fetch("/api/categories?type=EXPENSE");
       if (res.ok) {
         setCategories(await res.json());
       }
     } catch {
       /* ignore */
     }
-  }, [userId]);
+  }, [session]);
 
   const fetchWallets = useCallback(async () => {
-    if (!userId) return;
+    if (!session) return;
     try {
-      const res = await fetch(`/api/wallets?userId=${userId}`);
+      const res = await fetch("/api/wallets");
       if (res.ok) {
         setWallets(await res.json());
       }
     } catch {
       /* ignore */
     }
-  }, [userId]);
+  }, [session]);
 
   useEffect(() => {
-    if (userId) {
+    if (session) {
       fetchBudgets();
       fetchCategories();
       fetchWallets();
     }
-  }, [userId, fetchBudgets, fetchCategories]);
+  }, [session, fetchBudgets, fetchCategories]);
 
   const handleSubmit = async (values: typeof form.values) => {
-    if (!userId) return;
+    if (!session) return;
     setSubmitting(true);
     try {
       const res = await fetch("/api/budgets", {
@@ -119,7 +118,6 @@ export default function BudgetsPage() {
           name: values.name,
           amount: values.amount,
           period: values.period,
-          userId,
           categoryId: values.categoryId || undefined,
           walletId: values.walletId || undefined,
         }),

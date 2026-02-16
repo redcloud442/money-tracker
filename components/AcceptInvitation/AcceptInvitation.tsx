@@ -1,6 +1,17 @@
 "use client";
-import { authClient } from "@/lib/better-auth/auth-client";
-import { IconAlertCircle, IconCheck, IconLoader2 } from "@tabler/icons-react";
+
+import { authClient, useSession } from "@/lib/better-auth/auth-client";
+import {
+  Button,
+  Center,
+  Container,
+  Loader,
+  Paper,
+  Stack,
+  Text,
+  ThemeIcon,
+} from "@mantine/core";
+import { IconAlertCircle, IconCheck } from "@tabler/icons-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -12,11 +23,23 @@ const AcceptInvitation = ({ action }: AcceptInvitationProps) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
+  const { data: session, isPending: sessionLoading } = useSession();
   const [status, setStatus] = useState<"loading" | "success" | "error">(
     "loading"
   );
 
   useEffect(() => {
+    if (sessionLoading) return;
+
+    // If not logged in, redirect to register with invitation token preserved
+    if (!session) {
+      const params = new URLSearchParams();
+      if (token) params.set("invitationToken", token);
+      params.set("invitationAction", action);
+      router.push(`/register?${params.toString()}`);
+      return;
+    }
+
     const handleInvite = async () => {
       if (!token) {
         setStatus("error");
@@ -25,15 +48,20 @@ const AcceptInvitation = ({ action }: AcceptInvitationProps) => {
 
       try {
         if (action === "accept") {
-          await authClient.organization.acceptInvitation({
+          const result = await authClient.organization.acceptInvitation({
             invitationId: token,
           });
+          if (result.error) {
+            setStatus("error");
+          } else {
+            setStatus("success");
+          }
         } else {
           await authClient.organization.rejectInvitation({
             invitationId: token,
           });
+          setStatus("success");
         }
-        setStatus("success");
       } catch (err) {
         console.error("Failed to process invitation:", err);
         setStatus("error");
@@ -41,74 +69,77 @@ const AcceptInvitation = ({ action }: AcceptInvitationProps) => {
     };
 
     handleInvite();
-  }, [token, action]);
+  }, [token, action, session, sessionLoading, router]);
+
+  const handleSuccessRedirect = async () => {
+    if (action === "accept") {
+      // Re-fetch session to get updated activeOrganizationId
+      const freshSession = await authClient.getSession();
+      const orgId = freshSession?.data?.session?.activeOrganizationId;
+      router.push(orgId ? `/${orgId}` : "/onboarding");
+    } else {
+      router.push("/login");
+    }
+  };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 border border-slate-200">
-        {/* LOADING STATE */}
-        {status === "loading" && (
-          <div className="flex flex-col items-center text-center">
-            <div className="relative mb-4">
-              <IconLoader2 className="w-12 h-12 animate-spin text-blue-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-slate-800">
-              Processing Request
-            </h2>
-            <p className="mt-2 text-slate-500">
-              Please wait while we {action === "accept" ? "accept" : "reject"}{" "}
-              your invitation...
-            </p>
-          </div>
-        )}
+    <Center mih="100vh">
+      <Container size={420}>
+        <Paper withBorder shadow="lg" p="xl" radius="md">
+          {/* LOADING STATE */}
+          {status === "loading" && (
+            <Stack align="center" gap="md">
+              <Loader size="lg" color="blue" />
+              <Text fw={600} size="lg">
+                Processing Request
+              </Text>
+              <Text c="dimmed" ta="center">
+                Please wait while we {action === "accept" ? "accept" : "reject"}{" "}
+                your invitation...
+              </Text>
+            </Stack>
+          )}
 
-        {/* ERROR STATE */}
-        {status === "error" && (
-          <div className="flex flex-col items-center text-center">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-              <IconAlertCircle className="w-8 h-8 text-red-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-slate-800">
-              Something went wrong
-            </h2>
-            <p className="mt-2 text-slate-500">
-              The invitation link is either invalid, expired, or has already
-              been used.
-            </p>
-            <button
-              onClick={() => router.push("/login")}
-              className="mt-8 w-full px-6 py-3 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 transition-colors shadow-sm"
-            >
-              Back to Login
-            </button>
-          </div>
-        )}
+          {/* ERROR STATE */}
+          {status === "error" && (
+            <Stack align="center" gap="md">
+              <ThemeIcon size={64} radius="xl" color="red" variant="light">
+                <IconAlertCircle size={32} />
+              </ThemeIcon>
+              <Text fw={600} size="lg">
+                Something went wrong
+              </Text>
+              <Text c="dimmed" ta="center">
+                The invitation link is either invalid, expired, or has already
+                been used.
+              </Text>
+              <Button fullWidth mt="md" onClick={() => router.push("/login")}>
+                Back to Login
+              </Button>
+            </Stack>
+          )}
 
-        {/* SUCCESS STATE */}
-        {status === "success" && (
-          <div className="flex flex-col items-center text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-              <IconCheck className="w-8 h-8 text-green-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-slate-800">
-              Successfully {action === "accept" ? "Accepted" : "Rejected"}
-            </h2>
-            <p className="mt-2 text-slate-500">
-              Your request has been processed. You can now continue to the
-              application.
-            </p>
-            <button
-              onClick={() =>
-                router.push(action === "accept" ? "/dashboard" : "/login")
-              }
-              className="mt-8 w-full px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors shadow-sm"
-            >
-              {action === "accept" ? "Go to Dashboard" : "Return to Login"}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+          {/* SUCCESS STATE */}
+          {status === "success" && (
+            <Stack align="center" gap="md">
+              <ThemeIcon size={64} radius="xl" color="teal" variant="light">
+                <IconCheck size={32} />
+              </ThemeIcon>
+              <Text fw={600} size="lg">
+                Successfully {action === "accept" ? "Accepted" : "Rejected"}
+              </Text>
+              <Text c="dimmed" ta="center">
+                Your request has been processed. You can now continue to the
+                application.
+              </Text>
+              <Button fullWidth mt="md" onClick={handleSuccessRedirect}>
+                {action === "accept" ? "Go to Dashboard" : "Return to Login"}
+              </Button>
+            </Stack>
+          )}
+        </Paper>
+      </Container>
+    </Center>
   );
 };
 

@@ -4,10 +4,7 @@ import { nextCookies } from "better-auth/next-js";
 import { organization } from "better-auth/plugins";
 import prisma from "../prisma/prisma";
 import { sendEmail } from "../resend/resend";
-import {
-  setupDefaultResources,
-  syncOrganizationToExternalSystems,
-} from "./helper";
+import { setupDefaultResources, syncOrganizationToExternalSystems } from "./helper";
 import InvitationEmail from "./invitation-email";
 
 export const auth = betterAuth({

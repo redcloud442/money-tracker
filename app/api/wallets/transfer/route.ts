@@ -1,19 +1,19 @@
 import prisma from "@/lib/prisma/prisma";
 import { NextRequest, NextResponse } from "next/server";
-import { ProtectionMiddleware } from "../../protection";
+import { getAuthContext } from "../../protection";
 
 // POST transfer money between wallets
 export async function POST(request: NextRequest) {
   try {
-    await ProtectionMiddleware(request);
+    const { userId, organizationId } = await getAuthContext(request);
 
     const body = await request.json();
-    const { fromWalletId, toWalletId, amount, userId, description } = body;
+    const { fromWalletId, toWalletId, amount, description } = body;
 
-    if (!fromWalletId || !toWalletId || !amount || !userId) {
+    if (!fromWalletId || !toWalletId || !amount) {
       return NextResponse.json(
         {
-          error: "fromWalletId, toWalletId, amount, and userId are required",
+          error: "fromWalletId, toWalletId, and amount are required",
         },
         { status: 400 }
       );
@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
     }
 
     const [fromWallet, toWallet] = await Promise.all([
-      prisma.wallet.findUnique({ where: { id: fromWalletId } }),
-      prisma.wallet.findUnique({ where: { id: toWalletId } }),
+      prisma.wallet.findFirst({ where: { id: fromWalletId, organizationId } }),
+      prisma.wallet.findFirst({ where: { id: toWalletId, organizationId } }),
     ]);
 
     if (!fromWallet) {
@@ -52,13 +52,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (fromWallet.userId !== userId || toWallet.userId !== userId) {
-      return NextResponse.json(
-        { error: "Both wallets must belong to the specified user" },
-        { status: 403 }
-      );
-    }
-
     if (fromWallet.balance < amount) {
       return NextResponse.json(
         { error: "Insufficient balance in source wallet" },
@@ -67,36 +60,34 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Decrement source wallet balance
       const updatedFromWallet = await tx.wallet.update({
         where: { id: fromWalletId },
         data: { balance: { decrement: amount } },
       });
 
-      // Increment destination wallet balance
       const updatedToWallet = await tx.wallet.update({
         where: { id: toWalletId },
         data: { balance: { increment: amount } },
       });
 
-      // Create EXPENSE transaction on source wallet
       const expenseTransaction = await tx.transaction.create({
         data: {
           amount,
           type: "EXPENSE",
           description: description || `Transfer to ${toWallet.name}`,
           userId,
+          organizationId,
           walletId: fromWalletId,
         },
       });
 
-      // Create INCOME transaction on destination wallet
       const incomeTransaction = await tx.transaction.create({
         data: {
           amount,
           type: "INCOME",
           description: description || `Transfer from ${fromWallet.name}`,
           userId,
+          organizationId,
           walletId: toWalletId,
         },
       });
@@ -113,6 +104,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Error transferring between wallets:", error);
     return NextResponse.json(
       { error: "Failed to transfer between wallets" },

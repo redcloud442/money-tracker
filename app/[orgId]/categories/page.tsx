@@ -48,7 +48,6 @@ export default function CategoriesPage() {
   );
 
   const { data: session } = useSession();
-  const userId = session?.user?.id;
 
   const addForm = useForm({
     initialValues: {
@@ -66,9 +65,9 @@ export default function CategoriesPage() {
   });
 
   const fetchCategories = useCallback(async () => {
-    if (!userId) return;
+    if (!session) return;
     try {
-      const res = await fetch(`/api/categories?userId=${userId}`);
+      const res = await fetch("/api/categories");
       if (res.ok) {
         setCategories(await res.json());
       }
@@ -81,22 +80,22 @@ export default function CategoriesPage() {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [session]);
 
   useEffect(() => {
-    if (userId) {
+    if (session) {
       fetchCategories();
     }
-  }, [userId, fetchCategories]);
+  }, [session, fetchCategories]);
 
   const handleAdd = async (values: typeof addForm.values) => {
-    if (!userId) return;
+    if (!session) return;
     setSubmitting(true);
     try {
       const res = await fetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, userId }),
+        body: JSON.stringify(values),
       });
 
       if (res.ok) {

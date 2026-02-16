@@ -49,12 +49,11 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
 
   const { data: session } = useSession();
-  const userId = session?.user?.id;
 
   const fetchTransactions = useCallback(async () => {
-    if (!userId) return;
+    if (!session) return;
     try {
-      const res = await fetch(`/api/transactions?userId=${userId}`);
+      const res = await fetch("/api/transactions");
       if (res.ok) {
         const data = await res.json();
         setAllTransactions(data.data);
@@ -64,13 +63,13 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [session]);
 
   useEffect(() => {
-    if (userId) {
+    if (session) {
       fetchTransactions();
     }
-  }, [userId, fetchTransactions]);
+  }, [session, fetchTransactions]);
 
   // Filter transactions by selected period
   const filteredTransactions = useMemo(() => {

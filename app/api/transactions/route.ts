@@ -1,21 +1,13 @@
 import prisma from "@/lib/prisma/prisma";
 import { NextRequest, NextResponse } from "next/server";
-import { ProtectionMiddleware } from "../protection";
+import { getAuthContext } from "../protection";
 
 // GET all transactions with pagination and filters
 export async function GET(request: NextRequest) {
   try {
-    await ProtectionMiddleware(request);
+    const { organizationId } = await getAuthContext(request);
 
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "userId is required" },
-        { status: 400 }
-      );
-    }
 
     // Pagination
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
@@ -34,7 +26,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("endDate");
 
     // Build where clause
-    const where: Record<string, unknown> = { userId };
+    const where: Record<string, unknown> = { organizationId };
 
     if (search) {
       where.description = { contains: search, mode: "insensitive" };
@@ -79,6 +71,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data: transactions, total, page, limit });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Error fetching transactions:", error);
     return NextResponse.json(
       { error: "Failed to fetch transactions" },
@@ -90,14 +83,13 @@ export async function GET(request: NextRequest) {
 // POST new transaction
 export async function POST(request: NextRequest) {
   try {
-    await ProtectionMiddleware(request);
+    const { userId, organizationId } = await getAuthContext(request);
 
     const body = await request.json();
     const {
       amount,
       type,
       description,
-      userId,
       walletId,
       categoryId,
       date,
@@ -108,7 +100,7 @@ export async function POST(request: NextRequest) {
       nextRecurrenceDate,
     } = body;
 
-    if (!amount || !type || !userId || !walletId) {
+    if (!amount || !type || !walletId) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -123,6 +115,7 @@ export async function POST(request: NextRequest) {
           type,
           description,
           userId,
+          organizationId,
           walletId,
           categoryId,
           date: date ? new Date(date) : new Date(),
@@ -156,6 +149,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(transaction, { status: 201 });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Error creating transaction:", error);
     return NextResponse.json(
       { error: "Failed to create transaction" },
@@ -167,7 +161,7 @@ export async function POST(request: NextRequest) {
 // PUT update transaction
 export async function PUT(request: NextRequest) {
   try {
-    await ProtectionMiddleware(request);
+    const { organizationId } = await getAuthContext(request);
 
     const body = await request.json();
     const {
@@ -194,8 +188,8 @@ export async function PUT(request: NextRequest) {
 
     const transaction = await prisma.$transaction(async (tx) => {
       // Fetch the existing transaction to reverse its balance effect
-      const existing = await tx.transaction.findUnique({
-        where: { id },
+      const existing = await tx.transaction.findFirst({
+        where: { id, organizationId },
       });
 
       if (!existing) {
@@ -268,6 +262,7 @@ export async function PUT(request: NextRequest) {
         { status: 404 }
       );
     }
+    if (error instanceof NextResponse) return error;
     console.error("Error updating transaction:", error);
     return NextResponse.json(
       { error: "Failed to update transaction" },
@@ -279,7 +274,7 @@ export async function PUT(request: NextRequest) {
 // DELETE transaction
 export async function DELETE(request: NextRequest) {
   try {
-    await ProtectionMiddleware(request);
+    const { organizationId } = await getAuthContext(request);
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
@@ -293,8 +288,8 @@ export async function DELETE(request: NextRequest) {
 
     await prisma.$transaction(async (tx) => {
       // Fetch the transaction to know the balance impact to reverse
-      const existing = await tx.transaction.findUnique({
-        where: { id },
+      const existing = await tx.transaction.findFirst({
+        where: { id, organizationId },
       });
 
       if (!existing) {
@@ -327,6 +322,7 @@ export async function DELETE(request: NextRequest) {
         { status: 404 }
       );
     }
+    if (error instanceof NextResponse) return error;
     console.error("Error deleting transaction:", error);
     return NextResponse.json(
       { error: "Failed to delete transaction" },

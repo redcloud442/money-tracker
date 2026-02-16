@@ -79,7 +79,6 @@ const RECURRING_INTERVALS = [
 
 export default function TransactionsPage() {
   const { data: session } = useSession();
-  const userId = session?.user?.id;
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
@@ -127,11 +126,10 @@ export default function TransactionsPage() {
   const fmt = (d: Date) => d.toISOString().split("T")[0];
 
   const fetchTransactions = useCallback(async () => {
-    if (!userId) return;
+    if (!session) return;
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set("userId", userId);
       params.set("page", String(page));
       params.set("limit", String(LIMIT));
 
@@ -177,7 +175,7 @@ export default function TransactionsPage() {
       setLoading(false);
     }
   }, [
-    userId,
+    session,
     page,
     debouncedSearch,
     filterType,
@@ -188,37 +186,37 @@ export default function TransactionsPage() {
   ]);
 
   const fetchWallets = useCallback(async () => {
-    if (!userId) return;
+    if (!session) return;
     try {
-      const res = await fetch(`/api/wallets?userId=${userId}`);
+      const res = await fetch("/api/wallets");
       if (res.ok) setWallets(await res.json());
     } catch {
       /* ignore */
     }
-  }, [userId]);
+  }, [session]);
 
   const fetchCategories = useCallback(async () => {
-    if (!userId) return;
+    if (!session) return;
     try {
-      const res = await fetch(`/api/categories?userId=${userId}`);
+      const res = await fetch("/api/categories");
       if (res.ok) setCategories(await res.json());
     } catch {
       /* ignore */
     }
-  }, [userId]);
+  }, [session]);
 
   useEffect(() => {
-    if (userId) {
+    if (session) {
       fetchWallets();
       fetchCategories();
     }
-  }, [userId, fetchWallets, fetchCategories]);
+  }, [session, fetchWallets, fetchCategories]);
 
   useEffect(() => {
-    if (userId) {
+    if (session) {
       fetchTransactions();
     }
-  }, [userId, fetchTransactions]);
+  }, [session, fetchTransactions]);
 
   useEffect(() => {
     setPage(1);
@@ -239,7 +237,7 @@ export default function TransactionsPage() {
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
   const handleAdd = async (values: typeof form.values) => {
-    if (!userId) return;
+    if (!session) return;
     setSubmitting(true);
     try {
       const res = await fetch("/api/transactions", {
@@ -249,7 +247,6 @@ export default function TransactionsPage() {
           amount: values.amount,
           type: transactionType,
           description: values.description,
-          userId,
           walletId: values.walletId,
           categoryId: values.categoryId || undefined,
           date: values.date,
@@ -307,7 +304,7 @@ export default function TransactionsPage() {
   };
 
   const handleEdit = async (values: typeof form.values) => {
-    if (!userId || !editingTransaction) return;
+    if (!session || !editingTransaction) return;
     setSubmitting(true);
     try {
       const res = await fetch("/api/transactions", {
@@ -318,7 +315,6 @@ export default function TransactionsPage() {
           amount: values.amount,
           type: transactionType,
           description: values.description,
-          userId,
           walletId: values.walletId,
           categoryId: values.categoryId || undefined,
           date: values.date,
@@ -397,10 +393,9 @@ export default function TransactionsPage() {
   };
 
   const handleExportCsv = async () => {
-    if (!userId) return;
+    if (!session) return;
     try {
       const params = new URLSearchParams();
-      params.set("userId", userId);
       params.set("page", "1");
       params.set("limit", String(total || 10000));
 

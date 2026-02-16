@@ -28,7 +28,7 @@ import {
 } from "@tabler/icons-react";
 import { zodResolver } from "mantine-form-zod-resolver";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 
 const schema = z.object({
@@ -45,6 +45,9 @@ type SubmitValues = z.infer<typeof schema>;
 
 const RegisterPage = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const invitationToken = searchParams.get("invitationToken");
+  const invitationAction = searchParams.get("invitationAction");
   const form = useForm({
     initialValues: {
       name: "",
@@ -71,6 +74,15 @@ const RegisterPage = () => {
               title: "Account created",
               message: "You have successfully created your account",
             });
+
+            // If there's a pending invitation, redirect to process it
+            if (invitationToken && invitationAction) {
+              router.push(
+                `/invitation/${invitationAction}?token=${invitationToken}`
+              );
+              return;
+            }
+
             if (user.activeOrganizationId) {
               router.push(`/${user.activeOrganizationId}`);
             } else {
@@ -101,7 +113,6 @@ const RegisterPage = () => {
         minHeight: "100vh",
         display: "flex",
         alignItems: "center",
-        backgroundColor: "#ffffff",
       }}
     >
       <Container size={480} my={40}>
@@ -111,7 +122,6 @@ const RegisterPage = () => {
           p={40}
           radius="md"
           style={{
-            backgroundColor: "#ffffff",
             borderColor: "#e9ecef",
           }}
         >
@@ -158,6 +168,14 @@ const RegisterPage = () => {
               Sign up with GitHub
             </Button>
           </Stack>
+
+          {invitationToken && (
+            <Paper withBorder p="sm" radius="md" bg="blue.0" mt="md">
+              <Text size="sm" c="blue" ta="center" fw={500}>
+                Create an account to accept your organization invitation
+              </Text>
+            </Paper>
+          )}
 
           <Divider
             label="or sign up with email"

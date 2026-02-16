@@ -49,7 +49,6 @@ const DashboardPage = () => {
   const params = useParams();
   const orgId = params.orgId as string;
   const { data: session } = useSession();
-  const userId = session?.user?.id;
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
@@ -57,12 +56,12 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
-    if (!userId) return;
+    if (!session) return;
     try {
       const [txRes, walletRes, budgetRes] = await Promise.all([
-        fetch(`/api/transactions?userId=${userId}`),
-        fetch(`/api/wallets?userId=${userId}`),
-        fetch(`/api/budgets?userId=${userId}`),
+        fetch("/api/transactions"),
+        fetch("/api/wallets"),
+        fetch("/api/budgets"),
       ]);
 
       if (txRes.ok) {
@@ -82,13 +81,13 @@ const DashboardPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [session]);
 
   useEffect(() => {
-    if (userId) {
+    if (session) {
       fetchData();
     }
-  }, [userId, fetchData]);
+  }, [session, fetchData]);
 
   const totalBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
   const totalIncome = transactions

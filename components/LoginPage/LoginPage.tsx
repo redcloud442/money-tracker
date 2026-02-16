@@ -26,7 +26,7 @@ import {
 } from "@tabler/icons-react";
 import { zodResolver } from "mantine-form-zod-resolver";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 
 const schema = z.object({
@@ -38,6 +38,9 @@ type SubmitValues = z.infer<typeof schema>;
 
 const LoginPage = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const invitationToken = searchParams.get("invitationToken");
+  const invitationAction = searchParams.get("invitationAction");
   const form = useForm({
     initialValues: {
       email: "",
@@ -63,8 +66,16 @@ const LoginPage = () => {
               message: "You have successfully logged in",
             });
 
-            if (user.slug) {
-              router.push(`/${user.slug}`);
+            // If there's a pending invitation, redirect to process it
+            if (invitationToken && invitationAction) {
+              router.push(
+                `/invitation/${invitationAction}?token=${invitationToken}`
+              );
+              return;
+            }
+
+            if (user.activeOrganizationId) {
+              router.push(`/${user.activeOrganizationId}`);
             } else {
               router.push("/onboarding");
             }

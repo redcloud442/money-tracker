@@ -1,24 +1,14 @@
 import prisma from "@/lib/prisma/prisma";
 import { NextRequest, NextResponse } from "next/server";
-import { ProtectionMiddleware } from "../protection";
+import { getAuthContext } from "../protection";
 
 // GET all budgets with computed spent from transactions
 export async function GET(request: NextRequest) {
   try {
-    await ProtectionMiddleware(request);
-
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "userId is required" },
-        { status: 400 }
-      );
-    }
+    const { organizationId } = await getAuthContext(request);
 
     const budgets = await prisma.budget.findMany({
-      where: { userId },
+      where: { organizationId },
       include: {
         category: true,
         wallet: true,
@@ -30,13 +20,13 @@ export async function GET(request: NextRequest) {
     const budgetsWithSpent = await Promise.all(
       budgets.map(async (budget) => {
         const where: {
-          userId: string;
+          organizationId: string;
           type: "EXPENSE";
           date: { gte: Date; lte: Date };
           categoryId?: string;
           walletId?: string;
         } = {
-          userId,
+          organizationId,
           type: "EXPENSE",
           date: {
             gte: budget.startDate,
@@ -66,6 +56,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(budgetsWithSpent);
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Error fetching budgets:", error);
     return NextResponse.json(
       { error: "Failed to fetch budgets" },
@@ -77,23 +68,22 @@ export async function GET(request: NextRequest) {
 // POST new budget
 export async function POST(request: NextRequest) {
   try {
-    await ProtectionMiddleware(request);
+    const { userId, organizationId } = await getAuthContext(request);
 
     const body = await request.json();
     const {
       name,
       amount,
       period,
-      userId,
       categoryId,
       walletId,
       startDate,
       endDate,
     } = body;
 
-    if (!name || !amount || !userId) {
+    if (!name || !amount) {
       return NextResponse.json(
-        { error: "Name, amount, and userId are required" },
+        { error: "Name and amount are required" },
         { status: 400 }
       );
     }
@@ -152,6 +142,7 @@ export async function POST(request: NextRequest) {
         startDate: start,
         endDate: end,
         userId,
+        organizationId,
         categoryId: categoryId || undefined,
         walletId: walletId || undefined,
       },
@@ -163,6 +154,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(budget, { status: 201 });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Error creating budget:", error);
     return NextResponse.json(
       { error: "Failed to create budget" },
@@ -174,7 +166,7 @@ export async function POST(request: NextRequest) {
 // PUT update budget
 export async function PUT(request: NextRequest) {
   try {
-    await ProtectionMiddleware(request);
+    const { organizationId } = await getAuthContext(request);
 
     const body = await request.json();
     const { id, name, amount, period, categoryId, walletId } = body;
@@ -186,7 +178,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const existing = await prisma.budget.findUnique({ where: { id } });
+    const existing = await prisma.budget.findFirst({
+      where: { id, organizationId },
+    });
 
     if (!existing) {
       return NextResponse.json({ error: "Budget not found" }, { status: 404 });
@@ -209,6 +203,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(budget);
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Error updating budget:", error);
     return NextResponse.json(
       { error: "Failed to update budget" },
@@ -220,7 +215,7 @@ export async function PUT(request: NextRequest) {
 // DELETE budget
 export async function DELETE(request: NextRequest) {
   try {
-    await ProtectionMiddleware(request);
+    const { organizationId } = await getAuthContext(request);
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
@@ -232,7 +227,9 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const existing = await prisma.budget.findUnique({ where: { id } });
+    const existing = await prisma.budget.findFirst({
+      where: { id, organizationId },
+    });
 
     if (!existing) {
       return NextResponse.json({ error: "Budget not found" }, { status: 404 });
@@ -242,6 +239,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ message: "Budget deleted successfully" });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Error deleting budget:", error);
     return NextResponse.json(
       { error: "Failed to delete budget" },

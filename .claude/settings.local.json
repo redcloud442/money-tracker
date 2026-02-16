@@ -5,7 +5,11 @@
       "Bash(npm run db:generate:*)",
       "mcp__ide__getDiagnostics",
       "Bash(npx tsc:*)",
-      "Bash(npx prisma generate:*)"
+      "Bash(npx prisma generate:*)",
+      "Bash(ls:*)",
+      "Bash(npm run db:push:*)",
+      "Bash(npx prisma db execute:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

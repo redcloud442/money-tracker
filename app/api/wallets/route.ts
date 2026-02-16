@@ -1,24 +1,14 @@
 import prisma from "@/lib/prisma/prisma";
 import { NextRequest, NextResponse } from "next/server";
-import { ProtectionMiddleware } from "../protection";
+import { getAuthContext } from "../protection";
 
 // GET all wallets
 export async function GET(request: NextRequest) {
   try {
-    await ProtectionMiddleware(request);
-
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "userId is required" },
-        { status: 400 }
-      );
-    }
+    const { organizationId } = await getAuthContext(request);
 
     const wallets = await prisma.wallet.findMany({
-      where: { userId },
+      where: { organizationId },
       include: {
         _count: {
           select: { transactions: true },
@@ -29,6 +19,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(wallets);
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Error fetching wallets:", error);
     return NextResponse.json(
       { error: "Failed to fetch wallets" },
@@ -40,14 +31,14 @@ export async function GET(request: NextRequest) {
 // POST new wallet
 export async function POST(request: NextRequest) {
   try {
-    await ProtectionMiddleware(request);
+    const { userId, organizationId } = await getAuthContext(request);
 
     const body = await request.json();
-    const { name, type, balance, currency, color, icon, userId } = body;
+    const { name, type, balance, currency, color, icon } = body;
 
-    if (!name || !userId) {
+    if (!name) {
       return NextResponse.json(
-        { error: "Name and userId are required" },
+        { error: "Name is required" },
         { status: 400 }
       );
     }
@@ -61,11 +52,13 @@ export async function POST(request: NextRequest) {
         color,
         icon,
         userId,
+        organizationId,
       },
     });
 
     return NextResponse.json(wallet, { status: 201 });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Error creating wallet:", error);
     return NextResponse.json(
       { error: "Failed to create wallet" },
@@ -77,7 +70,7 @@ export async function POST(request: NextRequest) {
 // PUT update wallet
 export async function PUT(request: NextRequest) {
   try {
-    await ProtectionMiddleware(request);
+    const { organizationId } = await getAuthContext(request);
 
     const body = await request.json();
     const { id, name, type, color, icon, currency } = body;
@@ -89,7 +82,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const existing = await prisma.wallet.findUnique({ where: { id } });
+    const existing = await prisma.wallet.findFirst({
+      where: { id, organizationId },
+    });
 
     if (!existing) {
       return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
@@ -108,6 +103,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(wallet);
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Error updating wallet:", error);
     return NextResponse.json(
       { error: "Failed to update wallet" },
@@ -119,7 +115,7 @@ export async function PUT(request: NextRequest) {
 // DELETE wallet
 export async function DELETE(request: NextRequest) {
   try {
-    await ProtectionMiddleware(request);
+    const { organizationId } = await getAuthContext(request);
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
@@ -131,8 +127,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const existing = await prisma.wallet.findUnique({
-      where: { id },
+    const existing = await prisma.wallet.findFirst({
+      where: { id, organizationId },
       include: {
         _count: {
           select: { transactions: true },
@@ -145,7 +141,6 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (existing._count.transactions > 0) {
-      // Cascade: delete all transactions associated with this wallet first
       await prisma.transaction.deleteMany({
         where: { walletId: id },
       });
@@ -155,6 +150,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ message: "Wallet deleted successfully" });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Error deleting wallet:", error);
     return NextResponse.json(
       { error: "Failed to delete wallet" },
@@ -162,5 +158,3 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
-
-//check
