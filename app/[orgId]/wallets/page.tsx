@@ -2,11 +2,13 @@
 
 import { useSession } from "@/lib/better-auth/auth-client";
 import {
+  ActionIcon,
   Button,
   ColorInput,
   Grid,
   Group,
   Loader,
+  Menu,
   Modal,
   NumberInput,
   Paper,
@@ -19,7 +21,12 @@ import {
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconPlus, IconWallet } from "@tabler/icons-react";
+import {
+  IconArrowsExchange,
+  IconDotsVertical,
+  IconPlus,
+  IconWallet,
+} from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 
 interface Wallet {
@@ -33,9 +40,14 @@ interface Wallet {
 
 export default function WalletsPage() {
   const [opened, { open, close }] = useDisclosure(false);
+  const [transferOpened, { open: openTransfer, close: closeTransfer }] =
+    useDisclosure(false);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [transferSourceWallet, setTransferSourceWallet] =
+    useState<Wallet | null>(null);
 
   const { data: session } = useSession();
 
@@ -46,6 +58,14 @@ export default function WalletsPage() {
       balance: 0,
       currency: "PHP",
       color: "#3b82f6",
+    },
+  });
+
+  const transferForm = useForm({
+    initialValues: {
+      toWalletId: "",
+      amount: 0,
+      description: "",
     },
   });
 
@@ -111,6 +131,60 @@ export default function WalletsPage() {
     }
   };
 
+  const handleTransfer = async (values: typeof transferForm.values) => {
+    if (!session || !transferSourceWallet) return;
+    setTransferSubmitting(true);
+    try {
+      const res = await fetch("/api/wallets/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromWalletId: transferSourceWallet.id,
+          toWalletId: values.toWalletId,
+          amount: values.amount,
+          description: values.description || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        notifications.show({
+          title: "Success",
+          message: `Transferred ₱${values.amount.toFixed(2)} from ${transferSourceWallet.name}`,
+          color: "teal",
+        });
+        transferForm.reset();
+        setTransferSourceWallet(null);
+        closeTransfer();
+        fetchWallets();
+        localStorage.setItem(
+          "money-tracker-last-activity",
+          new Date().toISOString()
+        );
+      } else {
+        const error = await res.json();
+        notifications.show({
+          title: "Error",
+          message: error.error || "Failed to transfer",
+          color: "red",
+        });
+      }
+    } catch {
+      notifications.show({
+        title: "Error",
+        message: "Failed to transfer",
+        color: "red",
+      });
+    } finally {
+      setTransferSubmitting(false);
+    }
+  };
+
+  const openTransferModal = (wallet: Wallet) => {
+    setTransferSourceWallet(wallet);
+    transferForm.reset();
+    openTransfer();
+  };
+
   const totalBalance = wallets.reduce((sum, wallet) => sum + wallet.balance, 0);
 
   if (loading) {
@@ -157,9 +231,32 @@ export default function WalletsPage() {
                     >
                       <IconWallet size={24} />
                     </div>
-                    <Text size="xs" c="dimmed" tt="uppercase">
-                      {wallet.type.replace("_", " ")}
-                    </Text>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed" tt="uppercase">
+                        {wallet.type.replace("_", " ")}
+                      </Text>
+                      <Menu position="bottom-end" withArrow>
+                        <Menu.Target>
+                          <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            size="sm"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <IconDotsVertical size={16} />
+                          </ActionIcon>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                          <Menu.Item
+                            leftSection={<IconArrowsExchange size={14} />}
+                            onClick={() => openTransferModal(wallet)}
+                            disabled={wallets.length < 2}
+                          >
+                            Transfer from this wallet
+                          </Menu.Item>
+                        </Menu.Dropdown>
+                      </Menu>
+                    </Group>
                   </Group>
                   <Text fw={600} size="lg">
                     {wallet.name}
@@ -252,6 +349,81 @@ export default function WalletsPage() {
             </Group>
           </Stack>
         </form>
+      </Modal>
+
+      <Modal
+        opened={transferOpened}
+        onClose={() => {
+          closeTransfer();
+          transferForm.reset();
+          setTransferSourceWallet(null);
+        }}
+        title="Transfer Between Wallets"
+        centered
+      >
+        {transferSourceWallet && (
+          <form onSubmit={transferForm.onSubmit(handleTransfer)}>
+            <Stack gap="md">
+              <TextInput
+                label="From Wallet"
+                value={`${transferSourceWallet.name} (₱${transferSourceWallet.balance.toFixed(2)})`}
+                readOnly
+                variant="filled"
+              />
+
+              <Select
+                label="To Wallet"
+                placeholder="Select destination wallet"
+                required
+                data={wallets
+                  .filter((w) => w.id !== transferSourceWallet.id)
+                  .map((w) => ({
+                    value: w.id,
+                    label: `${w.name} (₱${w.balance.toFixed(2)})`,
+                  }))}
+                {...transferForm.getInputProps("toWalletId")}
+              />
+
+              <NumberInput
+                label="Amount"
+                placeholder="0.00"
+                required
+                prefix="₱"
+                decimalScale={2}
+                min={0.01}
+                max={transferSourceWallet.balance}
+                {...transferForm.getInputProps("amount")}
+              />
+
+              <TextInput
+                label="Description (optional)"
+                placeholder="e.g. Monthly savings"
+                {...transferForm.getInputProps("description")}
+              />
+
+              <Group justify="flex-end" mt="md">
+                <Button
+                  variant="subtle"
+                  onClick={() => {
+                    closeTransfer();
+                    transferForm.reset();
+                    setTransferSourceWallet(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  color="blue"
+                  loading={transferSubmitting}
+                  leftSection={<IconArrowsExchange size={16} />}
+                >
+                  Transfer
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+        )}
       </Modal>
     </>
   );

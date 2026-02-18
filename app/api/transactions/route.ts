@@ -1,6 +1,103 @@
 import prisma from "@/lib/prisma/prisma";
+import { RecurringInterval } from "@/app/generated/prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthContext } from "../protection";
+
+export function computeNextRecurrenceDate(
+  date: Date,
+  interval: RecurringInterval
+): Date {
+  const next = new Date(date);
+  switch (interval) {
+    case "DAILY":
+      next.setDate(next.getDate() + 1);
+      break;
+    case "WEEKLY":
+      next.setDate(next.getDate() + 7);
+      break;
+    case "BIWEEKLY":
+      next.setDate(next.getDate() + 14);
+      break;
+    case "MONTHLY":
+      next.setMonth(next.getMonth() + 1);
+      break;
+    case "YEARLY":
+      next.setFullYear(next.getFullYear() + 1);
+      break;
+  }
+  return next;
+}
+
+async function computeBudgetAlerts(
+  organizationId: string,
+  txDate: Date,
+  categoryId: string | null | undefined,
+  walletId: string
+) {
+  const matchingBudgets = await prisma.budget.findMany({
+    where: {
+      organizationId,
+      startDate: { lte: txDate },
+      endDate: { gte: txDate },
+      AND: [
+        {
+          OR: [
+            { categoryId: null },
+            ...(categoryId ? [{ categoryId }] : []),
+          ],
+        },
+        {
+          OR: [{ walletId: null }, { walletId }],
+        },
+      ],
+    },
+  });
+
+  if (matchingBudgets.length === 0) return [];
+
+  const alerts = [];
+
+  for (const budget of matchingBudgets) {
+    const where: {
+      organizationId: string;
+      type: "EXPENSE";
+      date: { gte: Date; lte: Date };
+      categoryId?: string;
+      walletId?: string;
+    } = {
+      organizationId,
+      type: "EXPENSE",
+      date: {
+        gte: budget.startDate,
+        lte: budget.endDate,
+      },
+    };
+
+    if (budget.categoryId) where.categoryId = budget.categoryId;
+    if (budget.walletId) where.walletId = budget.walletId;
+
+    const result = await prisma.transaction.aggregate({
+      where,
+      _sum: { amount: true },
+    });
+
+    const spent = result._sum.amount || 0;
+    const percentage = Math.round((spent / budget.amount) * 100);
+
+    if (percentage >= 80) {
+      alerts.push({
+        budgetId: budget.id,
+        name: budget.name,
+        spent,
+        limit: budget.amount,
+        percentage,
+        level: spent > budget.amount ? "exceeded" : "warning",
+      });
+    }
+  }
+
+  return alerts;
+}
 
 // GET all transactions with pagination and filters
 export async function GET(request: NextRequest) {
@@ -97,7 +194,6 @@ export async function POST(request: NextRequest) {
       notes,
       isRecurring,
       recurringInterval,
-      nextRecurrenceDate,
     } = body;
 
     if (!amount || !type || !walletId) {
@@ -105,6 +201,13 @@ export async function POST(request: NextRequest) {
         { error: "Missing required fields" },
         { status: 400 }
       );
+    }
+
+    // Auto-compute nextRecurrenceDate for recurring transactions
+    const txDate = date ? new Date(date) : new Date();
+    let computedNextDate: Date | null = null;
+    if (isRecurring && recurringInterval) {
+      computedNextDate = computeNextRecurrenceDate(txDate, recurringInterval);
     }
 
     // Create transaction and update wallet balance atomically
@@ -118,14 +221,12 @@ export async function POST(request: NextRequest) {
           organizationId,
           walletId,
           categoryId,
-          date: date ? new Date(date) : new Date(),
+          date: txDate,
           tags: tags || [],
           notes,
           isRecurring: isRecurring || false,
           recurringInterval: recurringInterval || null,
-          nextRecurrenceDate: nextRecurrenceDate
-            ? new Date(nextRecurrenceDate)
-            : null,
+          nextRecurrenceDate: computedNextDate,
         },
         include: {
           wallet: true,
@@ -147,7 +248,20 @@ export async function POST(request: NextRequest) {
       return newTransaction;
     });
 
-    return NextResponse.json(transaction, { status: 201 });
+    const budgetAlerts =
+      type === "EXPENSE"
+        ? await computeBudgetAlerts(
+            organizationId,
+            transaction.date,
+            transaction.categoryId,
+            transaction.walletId
+          )
+        : [];
+
+    return NextResponse.json(
+      { ...transaction, budgetAlerts },
+      { status: 201 }
+    );
   } catch (error) {
     if (error instanceof NextResponse) return error;
     console.error("Error creating transaction:", error);
@@ -176,7 +290,6 @@ export async function PUT(request: NextRequest) {
       notes,
       isRecurring,
       recurringInterval,
-      nextRecurrenceDate,
     } = body;
 
     if (!id) {
@@ -237,10 +350,25 @@ export async function PUT(request: NextRequest) {
       if (isRecurring !== undefined) updateData.isRecurring = isRecurring;
       if (recurringInterval !== undefined)
         updateData.recurringInterval = recurringInterval;
-      if (nextRecurrenceDate !== undefined)
-        updateData.nextRecurrenceDate = nextRecurrenceDate
-          ? new Date(nextRecurrenceDate)
-          : null;
+
+      // Recompute nextRecurrenceDate when recurring fields change
+      const effectiveIsRecurring =
+        isRecurring !== undefined ? isRecurring : existing.isRecurring;
+      const effectiveInterval =
+        recurringInterval !== undefined
+          ? recurringInterval
+          : existing.recurringInterval;
+      const effectiveDate =
+        date !== undefined ? new Date(date) : existing.date;
+
+      if (effectiveIsRecurring && effectiveInterval) {
+        updateData.nextRecurrenceDate = computeNextRecurrenceDate(
+          effectiveDate,
+          effectiveInterval
+        );
+      } else if (isRecurring === false) {
+        updateData.nextRecurrenceDate = null;
+      }
 
       const updatedTransaction = await tx.transaction.update({
         where: { id },
@@ -254,7 +382,17 @@ export async function PUT(request: NextRequest) {
       return updatedTransaction;
     });
 
-    return NextResponse.json(transaction);
+    const budgetAlerts =
+      transaction.type === "EXPENSE"
+        ? await computeBudgetAlerts(
+            organizationId,
+            transaction.date,
+            transaction.categoryId,
+            transaction.walletId
+          )
+        : [];
+
+    return NextResponse.json({ ...transaction, budgetAlerts });
   } catch (error) {
     if (error instanceof Error && error.message === "NOT_FOUND") {
       return NextResponse.json(

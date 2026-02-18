@@ -1,4 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout/DashboardLayout";
+import ActivityTracker from "@/components/PWA/ActivityTracker";
 import { auth } from "@/lib/better-auth/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -29,7 +30,12 @@ const MainLayout = async ({
     redirect("/onboarding");
   }
 
-  return <DashboardLayout orgId={orgId}>{children}</DashboardLayout>;
+  return (
+    <DashboardLayout orgId={orgId}>
+      <ActivityTracker />
+      {children}
+    </DashboardLayout>
+  );
 };
 
 export default MainLayout;

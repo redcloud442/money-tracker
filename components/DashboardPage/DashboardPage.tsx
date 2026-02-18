@@ -18,6 +18,7 @@ import {
   IconPlus,
   IconWallet,
 } from "@tabler/icons-react";
+import BudgetProgress from "@/components/Dashboard/BudgetProgress";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -52,12 +53,22 @@ const DashboardPage = () => {
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
-  const [hasBudgets, setHasBudgets] = useState(false);
+  const [budgets, setBudgets] = useState<
+    {
+      id: string;
+      name: string;
+      spent: number;
+      amount: number;
+    }[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     if (!session) return;
     try {
+      // Process any due recurring transactions and expired budgets first
+      await fetch("/api/recurring/process", { method: "POST" });
+
       const [txRes, walletRes, budgetRes] = await Promise.all([
         fetch("/api/transactions"),
         fetch("/api/wallets"),
@@ -72,9 +83,7 @@ const DashboardPage = () => {
       if (walletRes.ok) setWallets(await walletRes.json());
       if (budgetRes.ok) {
         const budgetData = await budgetRes.json();
-        setHasBudgets(
-          Array.isArray(budgetData) ? budgetData.length > 0 : false
-        );
+        setBudgets(Array.isArray(budgetData) ? budgetData : []);
       }
     } catch {
       /* silently fail for dashboard */
@@ -125,6 +134,14 @@ const DashboardPage = () => {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
   }, [transactions]);
+
+  const budgetProgressData = budgets.map((b, i) => ({
+    id: b.id,
+    name: b.name,
+    spent: b.spent,
+    total: b.amount,
+    color: CHART_COLORS[i % CHART_COLORS.length],
+  }));
 
   if (loading) {
     return (
@@ -294,6 +311,24 @@ const DashboardPage = () => {
           </Paper>
         </Grid.Col>
       </Grid>
+
+      {/* Budget Status */}
+      {budgets.length > 0 && (
+        <Paper shadow="xs" p="md" radius="md" withBorder>
+          <Group justify="space-between" mb="md">
+            <Title order={3}>Budget Status</Title>
+            <Button
+              component={Link}
+              href={`/${orgId}/budgets`}
+              variant="subtle"
+              size="xs"
+            >
+              Manage Budgets
+            </Button>
+          </Group>
+          <BudgetProgress budgets={budgetProgressData} />
+        </Paper>
+      )}
 
       {/* Quick Actions */}
       <Paper shadow="xs" p="md" radius="md" withBorder>

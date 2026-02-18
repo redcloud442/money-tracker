@@ -79,6 +79,8 @@ export async function POST(request: NextRequest) {
       walletId,
       startDate,
       endDate,
+      autoRenew,
+      renewDay,
     } = body;
 
     if (!name || !amount) {
@@ -145,6 +147,8 @@ export async function POST(request: NextRequest) {
         organizationId,
         categoryId: categoryId || undefined,
         walletId: walletId || undefined,
+        autoRenew: autoRenew ?? false,
+        renewDay: renewDay ?? null,
       },
       include: {
         category: true,
@@ -169,7 +173,7 @@ export async function PUT(request: NextRequest) {
     const { organizationId } = await getAuthContext(request);
 
     const body = await request.json();
-    const { id, name, amount, period, categoryId, walletId } = body;
+    const { id, name, amount, period, categoryId, walletId, autoRenew, renewDay } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -194,6 +198,8 @@ export async function PUT(request: NextRequest) {
         ...(period !== undefined && { period }),
         ...(categoryId !== undefined && { categoryId: categoryId || null }),
         ...(walletId !== undefined && { walletId: walletId || null }),
+        ...(autoRenew !== undefined && { autoRenew }),
+        ...(renewDay !== undefined && { renewDay: renewDay || null }),
       },
       include: {
         category: true,

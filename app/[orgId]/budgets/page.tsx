@@ -12,6 +12,7 @@ import {
   Paper,
   Select,
   Stack,
+  Switch,
   Text,
   TextInput,
   Title,
@@ -54,6 +55,8 @@ export default function BudgetsPage() {
       period: "MONTHLY",
       categoryId: "",
       walletId: "",
+      autoRenew: true,
+      renewDay: "" as number | "",
     },
   });
 

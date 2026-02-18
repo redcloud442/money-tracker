@@ -256,17 +256,35 @@ export default function TransactionsPage() {
       });
 
       if (res.ok) {
+        const data = await res.json();
         notifications.show({
           title: "Success",
           message: "Transaction added successfully",
           color: "teal",
         });
+        if (data.budgetAlerts?.length) {
+          for (const alert of data.budgetAlerts) {
+            const isExceeded = alert.level === "exceeded";
+            notifications.show({
+              title: isExceeded ? "Budget Exceeded!" : "Budget Warning",
+              message: isExceeded
+                ? `Budget "${alert.name}" exceeded! ₱${alert.spent.toLocaleString(undefined, { minimumFractionDigits: 2 })} / ₱${alert.limit.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                : `Budget "${alert.name}" is at ${alert.percentage}% (₱${alert.spent.toLocaleString(undefined, { minimumFractionDigits: 2 })} / ₱${alert.limit.toLocaleString(undefined, { minimumFractionDigits: 2 })})`,
+              color: isExceeded ? "red" : "yellow",
+              autoClose: 8000,
+            });
+          }
+        }
         form.reset();
         setIsRecurring(false);
         setRecurringInterval(null);
         closeAdd();
         fetchTransactions();
         fetchWallets();
+        localStorage.setItem(
+          "money-tracker-last-activity",
+          new Date().toISOString()
+        );
       } else {
         const error = await res.json();
         notifications.show({
@@ -324,11 +342,25 @@ export default function TransactionsPage() {
       });
 
       if (res.ok) {
+        const data = await res.json();
         notifications.show({
           title: "Success",
           message: "Transaction updated successfully",
           color: "teal",
         });
+        if (data.budgetAlerts?.length) {
+          for (const alert of data.budgetAlerts) {
+            const isExceeded = alert.level === "exceeded";
+            notifications.show({
+              title: isExceeded ? "Budget Exceeded!" : "Budget Warning",
+              message: isExceeded
+                ? `Budget "${alert.name}" exceeded! ₱${alert.spent.toLocaleString(undefined, { minimumFractionDigits: 2 })} / ₱${alert.limit.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                : `Budget "${alert.name}" is at ${alert.percentage}% (₱${alert.spent.toLocaleString(undefined, { minimumFractionDigits: 2 })} / ₱${alert.limit.toLocaleString(undefined, { minimumFractionDigits: 2 })})`,
+              color: isExceeded ? "red" : "yellow",
+              autoClose: 8000,
+            });
+          }
+        }
         form.reset();
         setIsRecurring(false);
         setRecurringInterval(null);
@@ -336,6 +368,10 @@ export default function TransactionsPage() {
         closeEdit();
         fetchTransactions();
         fetchWallets();
+        localStorage.setItem(
+          "money-tracker-last-activity",
+          new Date().toISOString()
+        );
       } else {
         const error = await res.json();
         notifications.show({
